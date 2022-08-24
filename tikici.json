@@ -1,0 +1,1641 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "definitions": {
+    "filter": {
+      "description": "A map defining rules for execution on specific branches",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "only": {
+          "description": "Either a single branch specifier, or a list of branch specifiers",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "ignore": {
+          "description": "Either a single branch specifier, or a list of branch specifiers",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "builtinSteps": {
+      "documentation": {
+        "run": {
+          "description": "Used for invoking all command-line programs, taking a map of configuration values."
+        },
+        "sonar": {
+          "description": "Execute sonar scan with configurated analysis parameters such as login credential, Sonar host URL, project name, branch name. Reference for specific language can be found [here](https://docs.sonarqube.org/latest/analysis/languages/overview)"
+        },
+        "save_cache": {
+          "description": "Generates and stores a cache of a file or directory of files such as dependencies or source code in our object storage. Later jobs can restore this cache using the `restore_cache` step."
+        },
+        "restore_cache": {
+          "description": "Restores a previously saved cache based on a `key`. Cache needs to have been saved first for this key using the `save_cache` step."
+        },
+        "deploy_dev": {
+          "description": "Step for deploying artifacts workload on dev(UAT) K8s. If the workload doesn't exist, it's created automatically."
+        },
+        "deploy_production": {
+          "description": "Step for deploying artifacts workload on production K8s. If the workload doesn't exist, it's created automatically."
+        },
+        "build_image": {
+          "description": "Step used to build image from given Dockerfile."
+        },
+        "push_image": {
+          "description": "Step used to push image on tikihub GCR."
+        },
+        "slack_notify": {
+          "description": "Step used to send custom message to slack."
+        }
+      },
+      "configuration": {
+        "run": {
+          "description": "Step use to run command outside Dockerfile",
+          "allOf": [
+            {
+              "$ref": "#/definitions/builtinSteps/documentation/run"
+            }
+          ],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "command",
+            "name"
+          ],
+          "properties": {
+            "command": {
+              "description": "Command to run via the shell",
+              "type": "string"
+            },
+            "name": {
+              "description": "Title of the step to be shown in the TikiCI",
+              "type": "string"
+            },
+            "image": {
+              "description": "Image of container to run. (This flag only work when config K8s unit test).",
+              "type": "string"
+            },
+            "envVars": {
+              "description": "Define envVars of unit test container. (This flag only work when config K8s unit test).",
+              "default": false,
+              "type": "object"
+            },
+            "envFrom": {
+              "description": "Define envFrom of unit test container. (This flag only work when config K8s unit test)",
+              "type": "object"
+            }
+          }
+        },
+        "save_cache": {
+          "description": "Step use to save dependencies cache",
+          "allOf": [
+            {
+              "$ref": "#/definitions/builtinSteps/documentation/save_cache"
+            }
+          ],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "paths",
+            "key"
+          ],
+          "properties": {
+            "paths": {
+              "description": "List of directories which should be added to the cache",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "key": {
+              "description": "Unique identifier for this cache",
+              "type": "string"
+            }
+          }
+        },
+        "restore_cache": {
+          "description": "Step use to restore dependencies cache",
+          "allOf": [
+            {
+              "$ref": "#/definitions/builtinSteps/documentation/restore_cache"
+            }
+          ],
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "key"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "description": "Single cache key to restore"
+                }
+              }
+            }
+          ]
+        },
+        "sonar": {
+          "description": "Step use to run sonar",
+          "allOf": [
+            {
+              "$ref": "#/definitions/builtinSteps/documentation/sonar"
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "maven": {
+              "type": "string"
+            },
+            "common": {
+              "type": "string"
+            },
+            "quality_check": {
+              "type": "string"
+            },
+            "sonar_exclusion": {
+              "type": "string"
+            }
+          }
+        },
+        "deploy_dev": {
+          "description": "Step use to deploy on uat environment",
+          "allOf": [
+            {
+              "$ref": "#/definitions/builtinSteps/documentation/deploy_dev"
+            }
+          ],
+          "properties": {
+            "cluster": {
+              "description": "A k8s cluster, default to dev for UAT environment",
+              "type": "string",
+              "default": "dev",
+              "enum": [
+                "dev"
+              ]
+            },
+            "workload": {
+              "description": "Name of workload",
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]+$"
+            },
+            "namespace": {
+              "description": "Namespace to deploy on UAT environment",
+              "type": "string"
+            },
+            "deployment_config": {
+              "description": "Name of deployment config, must be unique",
+              "type": "string"
+            },
+            "argocd_pipeline": {
+              "description": "Using argocd to deploy app",
+              "type": "string"
+            },
+            "spinnaker_pipeline": {
+              "description": "Using spinnaker to deploy app",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "vars": {
+                      "type": "object"
+                    }
+                  }
+                }
+              ]
+            },
+            "profile": {
+              "description": "Same as deployment_config, will be deprecated",
+              "type": "string"
+            }
+          }
+        },
+        "deploy_production": {
+          "description": "Step use to deploy workload on production environment",
+          "allOf": [
+            {
+              "$ref": "#/definitions/builtinSteps/documentation/deploy_production"
+            }
+          ],
+          "properties": {
+            "cluster": {
+              "description": "A k8s cluster environment",
+              "type": "string",
+              "enum": [
+                "k8s-social-commerce-prod",
+                "k8s-discovery-prod",
+                "k8s-astra-prod",
+                "k8s-checkout-prod",
+                "k8s-app-platform-prod",
+                "k8s-operations-prod",
+                "k8s-talaria-prod",
+                "k8s-catalog-prod",
+                "k8s-integration-prod",
+                "k8s-s14e-prod",
+                "k8s-shopping-prod",
+                "k8s-data-platform-prod",
+                "k8s-marketplace-prod",
+                "k8s-ai-prod",
+                "k8s-cicd-prod",
+                "k8s-core-platform-prod",
+                "k8s-payment-prod"
+              ]
+            },
+            "workload": {
+              "description": "Name of workload",
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]+$"
+            },
+            "namespace": {
+              "description": "Namespace to deploy on production environment",
+              "type": "string"
+            },
+            "deployment_config": {
+              "description": "Name of deployment config, must be unique",
+              "type": "string"
+            },
+            "argocd_pipeline": {
+              "description": "Using argocd to deploy app",
+              "type": "string"
+            },
+            "spinnaker_pipeline": {
+              "description": "Using spinnaker to deploy app",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "vars": {
+                      "type": "object"
+                    }
+                  }
+                }
+              ]
+            },
+            "profile": {
+              "description": "Same as deployment_config, will be deprecated",
+              "type": "string"
+            }
+          }
+        },
+        "build_image": {
+          "description": "Step use to build image",
+          "allOf": [
+            {
+              "$ref": "#/definitions/builtinSteps/documentation/build_image"
+            }
+          ],
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "dockerfile": {
+                  "description": "Dockerfile location",
+                  "type": "string"
+                },
+                "image": {
+                  "description": "Image tag to produced after build success. Ex: example:latest",
+                  "type": "string"
+                },
+                "build_location": {
+                  "description": "Workdir of your repo.",
+                  "type": "string"
+                },
+                "build_args": {
+                  "description": "Custom build argument to pass when build image",
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "push_image": {
+          "description": "Step use to push image",
+          "allOf": [
+            {
+              "$ref": "#/definitions/builtinSteps/documentation/push_image"
+            }
+          ],
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "image": {
+                  "description": "Image tag to produced after build success. Ex: example:latest",
+                  "type": "string"
+                },
+                "push_location": {
+                  "description": "Push to tikihub GCR image registry, Ex: asia.gcr.io/tikivn",
+                  "type": "string"
+                },
+                "auto_version": {
+                  "description": "Auto add build number to your image, as format example:<tag>-build-<buildnumber>. Set this to false if you only want to use 1 image tag.",
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "slack_notify": {
+          "description": "Send custom slack message",
+          "allOf": [
+            {
+              "$ref": "#/definitions/builtinSteps/documentation/slack_notify"
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "slack_build_status": {
+              "type": "string"
+            },
+            "slack_build_message": {
+              "type": "string"
+            },
+            "slack_build_channel": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "step": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "build_image",
+            "push_image"
+          ]
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 1,
+          "properties": {
+            "run": {
+              "$ref": "#/definitions/builtinSteps/configuration/run"
+            },
+            "sonar": {
+              "$ref": "#/definitions/builtinSteps/configuration/sonar"
+            },
+            "save_cache": {
+              "$ref": "#/definitions/builtinSteps/configuration/save_cache"
+            },
+            "restore_cache": {
+              "$ref": "#/definitions/builtinSteps/configuration/restore_cache"
+            },
+            "deploy_dev": {
+              "$ref": "#/definitions/builtinSteps/configuration/deploy_dev"
+            },
+            "deploy_production": {
+              "$ref": "#/definitions/builtinSteps/configuration/deploy_production"
+            },
+            "build_image": {
+              "$ref": "#/definitions/builtinSteps/configuration/build_image"
+            },
+            "push_image": {
+              "$ref": "#/definitions/builtinSteps/configuration/push_image"
+            },
+            "slack_notify": {
+              "$ref": "#/definitions/builtinSteps/configuration/slack_notify"
+            }
+          }
+        }
+      ]
+    },
+    "jobRef": {
+      "description": "Run a job as part of this workflow",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "requires": {
+          "description": "Jobs are run in parallel by default, so you must explicitly require any dependencies by their job name.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "filters": {
+          "description": "A map defining rules for execution on specific branches",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "branches": {
+              "$ref": "#/definitions/filter"
+            },
+            "tags": {
+              "$ref": "#/definitions/filter"
+            }
+          }
+        }
+      }
+    },
+    "jobs": {
+      "description": "Jobs are collections of steps. All of the steps in the job are executed in a single unit, either within a fresh container or VM.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "description": "A list of steps to be performed, reference https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-TikiCiconfiguration",
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/step"
+            }
+          },
+          "docker": {
+            "type": "array",
+            "description": "Create another container from image",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "image": {
+                  "description": "The name of a custom docker image to use",
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "args": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "services": {
+            "description": "Run unittest in k8s or VM",
+            "type": "object",
+            "properties": {
+              "kubernetes": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              },
+              "composer": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "deployment_config": {
+      "documentation": {
+        "ingress": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Ingress&services\nUsed to define ingress host for workload."
+        },
+        "resources": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Reserveresources\nUsed to define request, limit for cpu, memory."
+        },
+        "autoscaling": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-HPA\nUsed to config hpa for workload."
+        },
+        "envVars": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-EnvironmentVariables\nPass environment variable directly to workload."
+        },
+        "envFrom": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-EnvironmentVariables\nLoad environment variable from secret or configmap."
+        },
+        "volumes": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Mountingvolumes\nUsed to define volume."
+        },
+        "volumeMounts": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Mountingvolumes\nUsed to mount volume into workload from define volumes config."
+        },
+        "livenessProbe": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Healthcheck\nDefine healthcheck for workload, will restart app if healthcheck fail."
+        },
+        "readinessProbe": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Healthcheck\nDefine healthcheck for workload, will remove endpoint if fail."
+        },
+        "command": {
+          "description": "Define command to run on workload."
+        },
+        "affinity": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Node/PodAffinity\nScheduler pod with special rule."
+        },
+        "tolerations": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Tolerations\nDefine toleration for workload to be able to schedule on taint node."
+        },
+        "nodeSelector": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Nodeselector\nSelect node label to schedule pod."
+        },
+        "strategy": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-RollingStrategy\nRollout strategy for workload."
+        },
+        "specAnnotations": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Annotations\nAnnotation for workload."
+        },
+        "overrideLabels": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-CustomLabel\nOverride workload labels instead of using default label from tikici helm chart."
+        },
+        "pluton": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Pluton\nEnable pluton sidecar to send log, metrics."
+        },
+        "persistentVolumeClaim": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-PersistentVolumeClaim\nDefine persisten volume claim."
+        },
+        "cronJob": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-CronJob\nCreate cronjob."
+        },
+        "workloadType": {
+          "description": "Config what kind of workload type."
+        },
+        "volumeClaimTemplates": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-Statefulset\nSame as persistentVolumeClaim but for statefulset type only."
+        },
+        "replicaCount": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-ReplicaCount\nNumber of pods."
+        },
+        "replicaCountCanary": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-ReplicaCount\nNumber of canary pods (If canary is enable)."
+        },
+        "replicaCountEnforced": {
+          "description": "https://docs.tiki.com.vn/display/HAN/TikiCi+Configuration+Reference#TikiCiConfigurationReference-ReplicaCount\nSet this if need to control pod replica from tikici instead of get from current workload."
+        }
+      },
+      "configuration": {
+        "ingress": {
+          "type": "object",
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/ingress"
+            }
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "hosts": {
+              "type": "array",
+              "items": {
+                "required": [
+                  "host",
+                  "paths"
+                ],
+                "properties": {
+                  "additionalProperties": false,
+                  "host": {
+                    "type": "string",
+                    "description": "Use prefix xxx.dev.tiki.services for UAT environment, xxx.tiki.services for production environment."
+                  },
+                  "paths": {
+                    "type": "array",
+                    "required": [
+                      "path",
+                      "port"
+                    ],
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "description": "Path mapping into app"
+                        },
+                        "port": {
+                          "type": ["integer","string"],
+                          "description": "Port app expose"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "class": {
+              "description": "Define ingress class, default to nginx",
+              "type": "string"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "List of annotation for ingress. For nginx ingress follow this document: https://github.com/kubernetes/ingress-nginx/blob/main/docs/user-guide/nginx-configuration/annotations.md"
+            },
+            "canary": {
+              "type": "object",
+              "description": "Enable canary",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "canaryBy": {
+                  "type": "string",
+                  "description": "Canary type"
+                },
+                "canaryCookie": {
+                  "type": "string",
+                  "description": "Set cookie for canary to use"
+                }
+              }
+            },
+            "tls": {
+              "type": "array",
+              "required": [
+                "secretName",
+                "hosts"
+              ],
+              "items": {
+                "properties": {
+                  "secretName": {
+                    "type": "string"
+                  },
+                  "hosts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "autoTls": {
+              "type": "bool",
+              "description": "Used to automate setup SSL/TLS for host."
+            },
+            "service": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/resources"
+            }
+          ],
+          "properties": {
+            "limits": {
+              "description": "Limit resource, if reach this point, will auto terminate pod",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            },
+            "requests": {
+              "description": "Request resource",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "memory": {
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "envVars": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/envVars"
+            }
+          ]
+        },
+        "envFrom": {
+          "type": "array",
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/envFrom"
+            }
+          ],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "secretRef": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "optional": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "configMapRef": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "optional": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "volumes": {
+          "type": "array",
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/volumes"
+            }
+          ],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "secret": {
+                "type": "object",
+                "properties": {
+                  "secretName": {
+                    "type": "string"
+                  }
+                }
+              },
+              "configMap": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              },
+              "persistentVolumeClaim": {
+                "type": "object",
+                "properties": {
+                  "claimName": {
+                    "type": "string"
+                  }
+                }
+              },
+              "emptyDir": {
+                "type": "object"
+              },
+              "projected": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "volumeMounts": {
+          "type": "array",
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/volumeMounts"
+            }
+          ],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "mountPath": {
+                "type": "string"
+              },
+              "subPath": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "readinessProbe": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/readinessProbe"
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "failureThreshold": {
+              "type": "integer"
+            },
+            "initialDelaySeconds": {
+              "type": "integer"
+            },
+            "periodSeconds": {
+              "type": "integer"
+            },
+            "successThreshold": {
+              "type": "integer"
+            },
+            "timeoutSeconds": {
+              "type": "integer"
+            },
+            "httpGet": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "integer"
+                },
+                "scheme": {
+                  "type": "string"
+                }
+              }
+            },
+            "tcpSocket": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "port": {
+                  "type": "integer"
+                }
+              }
+            },
+            "exec": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "command": {
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "livenessProbe": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/livenessProbe"
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "failureThreshold": {
+              "type": "integer"
+            },
+            "initialDelaySeconds": {
+              "type": "integer"
+            },
+            "periodSeconds": {
+              "type": "integer"
+            },
+            "successThreshold": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            },
+            "timeoutSeconds": {
+              "type": "integer"
+            },
+            "httpGet": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "integer"
+                },
+                "scheme": {
+                  "type": "string"
+                }
+              }
+            },
+            "tcpSocket": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "port": {
+                  "type": "integer"
+                }
+              }
+            },
+            "exec": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "command": {
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "autoscaling": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/autoscaling"
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "minReplicas": {
+              "type": "integer"
+            },
+            "maxReplicas": {
+              "type": "integer"
+            },
+            "metrics": {
+              "type": "array",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "resource": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "type": {
+                            "type": "string"
+                          },
+                          "averageUtilization": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "behavior": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "selectPolicy": {
+                  "type": "string"
+                },
+                "stabilizationWindowSeconds": {
+                  "type": "integer"
+                },
+                "scaleDown": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "policies": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "periodSeconds": {
+                            "type": "integer"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "command": {
+          "type": "array",
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/command"
+            }
+          ]
+        },
+        "affinity": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/affinity"
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "nodeAffinity": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "requiredDuringSchedulingIgnoredDuringExecution": {
+                  "type": "object"
+                },
+                "preferredDuringSchedulingIgnoredDuringExecution": {
+                  "type": "object"
+                }
+              }
+            },
+            "podAffinity": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "requiredDuringSchedulingIgnoredDuringExecution": {
+                  "type": "object"
+                },
+                "preferredDuringSchedulingIgnoredDuringExecution": {
+                  "type": "object"
+                }
+              }
+            },
+            "podAntiAffinity": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "requiredDuringSchedulingIgnoredDuringExecution": {
+                  "type": "object"
+                },
+                "preferredDuringSchedulingIgnoredDuringExecution": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tolerations": {
+          "type": "array",
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/tolerations"
+            }
+          ],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "operator": {
+                "type": "string"
+              },
+              "effect": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/nodeSelector"
+            }
+          ]
+        },
+        "strategy": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/strategy"
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "RollingUpdate",
+                "Recreate"
+              ]
+            },
+            "rollingUpdate": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxSurge": {
+                  "type": [
+                    "integer",
+                    "string",
+                    "number"
+                  ]
+                },
+                "maxUnavailable": {
+                  "type": [
+                    "integer",
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "specAnnotations": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/specAnnotations"
+            }
+          ],
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          }
+        },
+        "overrideLabels": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/overrideLabels"
+            }
+          ],
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "pluton": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/pluton"
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "envVars": {
+              "$ref": "#/definitions/deployment_config/configuration/envVars"
+            },
+            "resources": {
+              "$ref": "#/definitions/deployment_config/configuration/resources"
+            }
+          }
+        },
+        "persistentVolumeClaim": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/persistentVolumeClaim"
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "accessModes": {
+              "type": "array"
+            },
+            "storage": {
+              "type": "string"
+            },
+            "class": {
+              "type": "string"
+            },
+            "list": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "accessModes": {
+                    "type": "array"
+                  },
+                  "storage": {
+                    "type": "integer"
+                  },
+                  "class": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "cronJob": {
+          "type": "object",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/cronJob"
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "backoffLimit": {
+              "type": "integer"
+            },
+            "failedJobsHistoryLimit": {
+              "type": "integer"
+            },
+            "schedule": {
+              "type": "string"
+            },
+            "successfulJobsHistoryLimit": {
+              "type": "integer"
+            },
+            "restartPolicy": {
+              "type": "string"
+            },
+            "imagePullSecrets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "workloadType": {
+          "type": "string",
+          "enum": [
+            "Deployment",
+            "Statefulset",
+            "CronJob"
+          ],
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/workloadType"
+            }
+          ]
+        },
+        "volumeClaimTemplates": {
+          "type": "array",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/volumeClaimTemplates"
+            }
+          ],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "metadata": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              },
+              "spec": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "accessModes": {
+                    "type": "array"
+                  },
+                  "resources": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "requests": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "storage": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "storageClassName": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "replicaCount": {
+          "type": "integer",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/replicaCount"
+            }
+          ]
+        },
+        "replicaCountCanary": {
+          "type": "integer",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/replicaCountCanary"
+            }
+          ]
+        },
+        "replicaCountEnforced": {
+          "type": "boolean",
+          "allOf": [
+            {
+              "$ref": "#/definitions/deployment_config/documentation/replicaCountEnforced"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "properties": {
+    "version": {
+      "description": "The version field is intended to be used in order to issue warnings for deprecation or breaking changes.",
+      "default": 2,
+      "type": ["integer", "string"]
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "slack_channel": {
+          "description": "Slack channel to send CI/CD status.",
+          "type": "string"
+        },
+        "slack_notify": {
+          "description": "Enable notify CI/CD status via Slack.",
+          "type": "boolean"
+        },
+        "slack_cc": {
+          "description": "Tag person receive alert.",
+          "type": "string"
+        },
+        "dev_branch_name": {
+          "description": "Branch for development.",
+          "type": "string"
+        },
+        "no_cache": {
+          "description": "Enable build with no cache.",
+          "type": "boolean"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "description": "Define environment variable to use in CI/CD."
+    },
+    "credentials": {
+      "type": "object",
+      "description": "Load credential from TikiCI",
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "array"
+        }
+      }
+    },
+    "jobs": {
+      "$ref": "#/definitions/jobs"
+    },
+    "workflows": {
+      "description": "Used for orchestrating all jobs. Each workflow consists of the workflow name as a key and a map as a value",
+      "type": "object",
+      "properties": {
+        "jenkins_pipeline": {
+          "description": "Specifies which triggers will cause this workflow to be executed. Default behavior is to trigger the workflow when pushing to a branch.",
+          "type": "object",
+          "properties": {
+            "jobs": {
+              "type": "array",
+              "item": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "$ref": "#/definitions/jobRef"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "cleanup": {
+          "type": "object",
+          "properties": {
+            "jobs": {
+              "type": "array",
+              "item": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "$ref": "#/definitions/jobRef"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "deployment_config": {
+      "description": "Used define config value for your workload, to be used on our TikiCI helm charts.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "ingress": {
+            "$ref": "#/definitions/deployment_config/configuration/ingress"
+          },
+          "resources": {
+            "$ref": "#/definitions/deployment_config/configuration/resources"
+          },
+          "envVars": {
+            "$ref": "#/definitions/deployment_config/configuration/envVars"
+          },
+          "envFrom": {
+            "$ref": "#/definitions/deployment_config/configuration/envFrom"
+          },
+          "volumes": {
+            "$ref": "#/definitions/deployment_config/configuration/volumes"
+          },
+          "volumeMounts": {
+            "$ref": "#/definitions/deployment_config/configuration/volumeMounts"
+          },
+          "readinessProbe": {
+            "$ref": "#/definitions/deployment_config/configuration/readinessProbe"
+          },
+          "livenessProbe": {
+            "$ref": "#/definitions/deployment_config/configuration/livenessProbe"
+          },
+          "autoscaling": {
+            "$ref": "#/definitions/deployment_config/configuration/autoscaling"
+          },
+          "command": {
+            "$ref": "#/definitions/deployment_config/configuration/command"
+          },
+          "affinity": {
+            "$ref": "#/definitions/deployment_config/configuration/affinity"
+          },
+          "tolerations": {
+            "$ref": "#/definitions/deployment_config/configuration/tolerations"
+          },
+          "nodeSelector": {
+            "$ref": "#/definitions/deployment_config/configuration/nodeSelector"
+          },
+          "strategy": {
+            "$ref": "#/definitions/deployment_config/configuration/strategy"
+          },
+          "specAnnotations": {
+            "$ref": "#/definitions/deployment_config/configuration/specAnnotations"
+          },
+          "overrideLabels": {
+            "$ref": "#/definitions/deployment_config/configuration/overrideLabels"
+          },
+          "pluton": {
+            "$ref": "#/definitions/deployment_config/configuration/pluton"
+          },
+          "persistentVolumeClaim": {
+            "$ref": "#/definitions/deployment_config/configuration/persistentVolumeClaim"
+          },
+          "cronJob": {
+            "$ref": "#/definitions/deployment_config/configuration/cronJob"
+          },
+          "workloadType": {
+            "$ref": "#/definitions/deployment_config/configuration/workloadType"
+          },
+          "volumeClaimTemplates": {
+            "$ref": "#/definitions/deployment_config/configuration/volumeClaimTemplates"
+          },
+          "replicaCount": {
+            "$ref": "#/definitions/deployment_config/configuration/replicaCount"
+          },
+          "replicaCountCanary": {
+            "$ref": "#/definitions/deployment_config/configuration/replicaCountCanary"
+          },
+          "replicaCountEnforced": {
+            "$ref": "#/definitions/deployment_config/configuration/replicaCountEnforced"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "version",
+    "config",
+    "workflows",
+    "jobs",
+    "deployment_config"
+  ],
+  "title": "JSON schema for TikiCI configuration files.",
+  "description": "TikiCI structure\nhttps://docs.tiki.com.vn/display/HAN/Tiki+CI#TikiCI-Structure",
+  "type": "object"
+}
